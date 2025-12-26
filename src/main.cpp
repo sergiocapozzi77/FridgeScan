@@ -14,6 +14,7 @@ const char *password = "4kF3zadv5@";
 // put function declarations here:
 void setup();
 void loop();
+bool isValidBarcode(const String &barcode);
 
 void setup()
 {
@@ -53,8 +54,29 @@ void loop()
     {
       Serial.print("Barcode scanned: ");
       Serial.println(barcode);
-      // Fetch product info from API
-      fetchProductInfo(barcode);
+
+      // Validate barcode format (optional, based on GM865 output)
+      if (isValidBarcode(barcode))
+      {
+        // Fetch product info from API
+        fetchProductInfo(barcode);
+      }
+      else
+      {
+        Serial.println("Invalid barcode format");
+      }
     }
   }
+}
+
+// Helper function to validate barcode format (example implementation)
+bool isValidBarcode(const String &barcode)
+{
+  // Example: Ensure barcode is numeric and within a certain length range
+  for (char c : barcode)
+  {
+    if (!isDigit(c))
+      return false;
+  }
+  return barcode.length() >= 8 && barcode.length() <= 13; // Adjust length as needed
 }

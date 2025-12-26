@@ -95,6 +95,9 @@ void fetchProductInfo(String barcode)
         {
             Serial.print("HTTP Error: ");
             Serial.println(httpResponseCode);
+            Serial.println("Retrying...");
+            delay(2000); // Wait before retrying
+            fetchProductInfo(barcode); // Retry fetching product info
         }
         http.end();
     }
