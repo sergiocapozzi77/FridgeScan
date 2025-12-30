@@ -43,6 +43,11 @@ void fetchProductInfo(String barcode)
         else
         {
             Serial.println("Product not found");
+            Serial.print("HTTP Error: ");
+            Serial.println(httpResponseCode);
+            /* Serial.println("Retrying...");
+             delay(2000); // Wait before retrying
+             fetchProductInfo(barcode); // Retry fetching product info*/
         }
     }
     else
