@@ -2,59 +2,84 @@
 #include <WiFi.h>
 #include "product_api.h"
 
-// Define UART pins for the barcode reader (adjust as needed for your wiring)
-#define BARCODE_RX_PIN 16 // Connect to TX of GM865
-#define BARCODE_TX_PIN 17 // Connect to RX of GM865
-#define BARCODE_BAUD 9600 // Default baud rate for GM865, confirm in datasheet
+// ===== UART PINS FOR ESP32-S3 =====
+#define BARCODE_RX_PIN 7 // ESP32-S3 GPIO7  -> GM865 TX
+#define BARCODE_TX_PIN 6 // ESP32-S3 GPIO6  -> GM865 RX
+#define BARCODE_BAUD 9600
 
-// WiFi credentials (replace with your own)
+// ===== Wi-Fi (replace with yours) =====
 const char *ssid = "CommunityFibre10Gb_1206C";
 const char *password = "4kF3zadv5@";
 
-// put function declarations here:
-void setup();
-void loop();
+// Queue to pass barcodes to the worker task
+QueueHandle_t barcodeQueue;
+
+void fetchTask(void *param)
+{
+  String barcode;
+
+  for (;;)
+  {
+    if (xQueueReceive(barcodeQueue, &barcode, portMAX_DELAY) == pdTRUE)
+    {
+      fetchProductInfo(barcode);
+    }
+  }
+}
 
 void setup()
 {
-  // Initialize serial for debugging
   Serial.begin(115200);
-  while (!Serial)
-  {
-    ; // Wait for serial port to connect (for some boards)
-  }
-  Serial.println("Barcode Reader Initialized");
+  delay(200);
+  Serial.println("Booting…");
 
-  // Initialize UART for barcode reader
+  // ---- Barcode UART ----
   Serial1.begin(BARCODE_BAUD, SERIAL_8N1, BARCODE_RX_PIN, BARCODE_TX_PIN);
+  Serial.println("Serial1 (GM865) ready");
 
-  // Connect to WiFi
+  // ---- Wi-Fi ----
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+  Serial.print("Connecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(500);
+    delay(400);
     Serial.print(".");
   }
-  Serial.println("\nConnected to WiFi");
+  Serial.println("\nWi-Fi connected");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Create queue (10 strings max)
+  barcodeQueue = xQueueCreate(10, sizeof(String));
+
+  // Create background fetch task
+  xTaskCreatePinnedToCore(
+      fetchTask,
+      "FetchTask",
+      10000,
+      NULL,
+      1,
+      NULL,
+      1 // run on core 1
+  );
 }
 
 void loop()
 {
-  // Check if data is available from the barcode reader
   if (Serial1.available())
   {
-    // Read the barcode data until a newline (assuming GM865 sends \n or \r\n)
     String barcode = Serial1.readStringUntil('\n');
-    // Remove any trailing \r if present
     barcode.trim();
 
-    if (barcode.length() > 0)
+    if (barcode.length())
     {
-      Serial.print("Barcode scanned: ");
+      Serial.print("Scanned: ");
       Serial.println(barcode);
-      // Fetch product info from API
-      fetchProductInfo(barcode);
+
+      // Push to queue (non-blocking)
+      xQueueSend(barcodeQueue, &barcode, 0);
+
+      Serial.print("Ready for next scan\n");
     }
   }
 }
