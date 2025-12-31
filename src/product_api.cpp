@@ -112,7 +112,7 @@ void fetchProductInfo(String barcode)
             String productName = doc["product"]["product_name"] | "";
             JsonArray tags = doc["product"]["categories_tags"].as<JsonArray>();
 
-            Serial.print("Product found");
+            Serial.print("Product found: ");
             Serial.println(productName);
 
             String category = "Other";

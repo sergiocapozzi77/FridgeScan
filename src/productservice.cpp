@@ -9,6 +9,28 @@ ProductService::ProductService(String appWriteKey)
 {
 }
 
+// Helper function to URL encode
+String urlEncode(const String &str)
+{
+    String encoded = "";
+    char c;
+    char bufHex[4];
+    for (size_t i = 0; i < str.length(); i++)
+    {
+        c = str[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            encoded += c;
+        }
+        else
+        {
+            sprintf(bufHex, "%%%02X", c);
+            encoded += bufHex;
+        }
+    }
+    return encoded;
+}
+
 // ---------- GET PRODUCTS ----------
 std::vector<Product> ProductService::getProducts(const std::vector<String> &queries)
 {
@@ -24,12 +46,14 @@ std::vector<Product> ProductService::getProducts(const std::vector<String> &quer
         url += "?";
         for (size_t i = 0; i < queries.size(); i++)
         {
-            url += "queries[" + String(i) + "]=" + queries[i];
+            url += "queries[" + String(i) + "]=" + urlEncode(queries[i]);
             if (i < queries.size() - 1)
                 url += "&";
         }
     }
 
+    Serial.print("Fetching products from: ");
+    Serial.println(url);
     if (!http.begin(client, url))
         return result;
 
@@ -45,6 +69,9 @@ std::vector<Product> ProductService::getProducts(const std::vector<String> &quer
 
         JsonArray rows = doc["rows"].as<JsonArray>();
 
+        Serial.print("Fetched products count: ");
+        Serial.println(rows.size());
+
         for (JsonObject r : rows)
         {
             Product p;
@@ -54,6 +81,11 @@ std::vector<Product> ProductService::getProducts(const std::vector<String> &quer
             p.rowId = r["$id"] | "";
             result.push_back(p);
         }
+    }
+    else
+    {
+        Serial.print("Failed to fetch products. HTTP code: ");
+        Serial.println(code);
     }
 
     http.end();
