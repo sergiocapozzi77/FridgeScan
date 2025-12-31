@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "product_api.h"
-#include "productservice.cpp"
+#include "productservice.h"
 
 // ===== UART PINS FOR ESP32-S3 =====
 #define BARCODE_RX_PIN 7 // ESP32-S3 GPIO7  -> GM865 TX
@@ -14,8 +14,6 @@ const char *password = "4kF3zadv5@";
 
 // Queue to pass barcodes to the worker task
 QueueHandle_t barcodeQueue;
-
-ProductService service("standard_b303af6fe35d0302c1405b926b41bef69847c4df0fec3faf0a6244fefe1a1f090539d7599a3af53d2f30abfd98987161b6454fe462429fc5c589a28d3f68a372f130c1b162c685eeee21e4cf2c8d7a003df8375eea7813a4142d958d95a7c39419aa1b2edd1844faa3897ef68b14ad1b8dd951b747c21653ce03ce650b835044");
 
 void fetchTask(void *param)
 {
@@ -69,15 +67,15 @@ void setup()
 
 void loop()
 {
-  Serial.println("Adding product");
-  Product p;
-  p.name = "Marmite";
-  p.quantity = 2;
-  p.category = "Dairy";
+  // Serial.println("Adding product");
+  // Product p;
+  // p.name = "Marmite";
+  // p.quantity = 2;
+  // p.category = "Dairy";
 
-  bool result = service.addProduct(p);
+  // bool result = service.addOrUpdateProduct(p);
 
-  Serial.print("Added product " + result ? "successfully. ID: " + p.rowId : "failed");
+  // Serial.print("Added product " + result ? "successfully. ID: " + p.rowId : "failed");
 
   if (Serial1.available())
   {

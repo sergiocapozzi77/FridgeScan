@@ -1,186 +1,192 @@
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#include <ArduinoJson.h>
-#include <vector>
+#include "secrets.h"
+#include "ProductService.h"
 
-struct Product
+ProductService service(APPWRITE_API_KEY);
+
+// ---------- CONSTRUCTOR ----------
+ProductService::ProductService(String appWriteKey)
+    : apiKey(appWriteKey)
 {
-    String name;
-    int quantity;
-    String category;
-    String rowId;
-};
+}
 
-class ProductService
+// ---------- GET PRODUCTS ----------
+std::vector<Product> ProductService::getProducts(const std::vector<String> &queries)
 {
+    std::vector<Product> result;
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
 
-private:
-    const String Endpoint = "https://fra.cloud.appwrite.io/v1";
-    const String ProjectId = "6954045e003c75c1c3bf";
-    const String DatabaseId = "695404ac0021bf7d9707";
-    const String CollectionId = "products";
+    String url = Endpoint + "/tablesdb/" + DatabaseId + "/tables/" + CollectionId + "/rows";
 
-    String apiKey;
-
-public:
-    ProductService(String appWriteKey)
-        : apiKey(appWriteKey) {}
-
-    // ---------- GET PRODUCTS ----------
-    std::vector<Product> getProducts()
+    if (!queries.empty())
     {
-
-        std::vector<Product> result;
-
-        WiFiClientSecure client;
-        client.setInsecure(); // (or load proper cert)
-
-        HTTPClient http;
-
-        String url = Endpoint + "/tablesdb/" + DatabaseId +
-                     "/tables/" + CollectionId + "/rows";
-
-        if (!http.begin(client, url))
-            return result;
-
-        http.addHeader("X-Appwrite-Project", ProjectId);
-        http.addHeader("X-Appwrite-Key", apiKey);
-
-        int code = http.GET();
-
-        if (code == 200)
+        url += "?";
+        for (size_t i = 0; i < queries.size(); i++)
         {
-            DynamicJsonDocument doc(8192);
-            deserializeJson(doc, http.getString());
-
-            JsonArray rows = doc["rows"].as<JsonArray>();
-
-            for (JsonObject r : rows)
-            {
-                Product p;
-                p.name = r["name"] | "";
-                p.quantity = r["quantity"] | 0;
-                p.category = r["category"] | "Other";
-                p.rowId = r["$id"] | "";
-                result.push_back(p);
-            }
+            url += "queries[" + String(i) + "]=" + queries[i];
+            if (i < queries.size() - 1)
+                url += "&";
         }
+    }
 
-        http.end();
+    if (!http.begin(client, url))
         return result;
+
+    http.addHeader("X-Appwrite-Project", ProjectId);
+    http.addHeader("X-Appwrite-Key", apiKey);
+
+    int code = http.GET();
+
+    if (code == 200)
+    {
+        DynamicJsonDocument doc(8192);
+        deserializeJson(doc, http.getString());
+
+        JsonArray rows = doc["rows"].as<JsonArray>();
+
+        for (JsonObject r : rows)
+        {
+            Product p;
+            p.name = r["name"] | "";
+            p.quantity = r["quantity"] | 0;
+            p.category = r["category"] | "Other";
+            p.rowId = r["$id"] | "";
+            result.push_back(p);
+        }
     }
 
-    // ---------- ADD PRODUCT ----------
-    bool addProduct(Product &product)
+    http.end();
+    return result;
+}
+
+// ---------- ADD OR UPDATE ----------
+bool ProductService::addOrUpdateProduct(Product &product)
+{
+    std::vector<String> query;
+    String q = "{\"method\":\"equal\",\"attribute\":\"name\",\"values\":[\"" + product.name + "\"]}";
+    query.push_back(q);
+
+    std::vector<Product> existing = getProducts(query);
+
+    if (!existing.empty())
     {
+        Product existingProduct = existing[0];
+        existingProduct.quantity += product.quantity;
+        return updateProduct(existingProduct);
+    }
+    else
+    {
+        return addProduct(product);
+    }
+}
 
-        WiFiClientSecure client;
-        client.setInsecure();
-        HTTPClient http;
+// ---------- ADD PRODUCT ----------
+bool ProductService::addProduct(Product &product)
+{
+    Serial.print("Adding product: ");
+    Serial.println(product.name);
 
-        String url = Endpoint + "/tablesdb/" + DatabaseId +
-                     "/tables/" + CollectionId + "/rows";
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
 
-        if (!http.begin(client, url))
-            return false;
+    String url = Endpoint + "/tablesdb/" + DatabaseId + "/tables/" + CollectionId + "/rows";
 
-        http.addHeader("Content-Type", "application/json");
-        http.addHeader("X-Appwrite-Project", ProjectId);
-        http.addHeader("X-Appwrite-Key", apiKey);
-
-        String rowId = generateId();
-
-        DynamicJsonDocument body(512);
-        body["rowId"] = rowId;
-        body["data"]["name"] = product.name;
-        body["data"]["quantity"] = product.quantity;
-        body["data"]["category"] = product.category;
-
-        String payload;
-        serializeJson(body, payload);
-
-        int code = http.POST(payload);
-
-        if (code == 201 || code == 200)
-        {
-            DynamicJsonDocument doc(1024);
-            deserializeJson(doc, http.getString());
-            product.rowId = doc["$id"] | "";
-            http.end();
-            return true;
-        }
-
-        http.end();
+    if (!http.begin(client, url))
         return false;
-    }
 
-    // ---------- DELETE ----------
-    bool deleteProduct(String rowId)
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-Appwrite-Project", ProjectId);
+    http.addHeader("X-Appwrite-Key", apiKey);
+
+    String rowId = generateId();
+
+    DynamicJsonDocument body(512);
+    body["rowId"] = rowId;
+    body["data"]["name"] = product.name;
+    body["data"]["quantity"] = product.quantity;
+    body["data"]["category"] = product.category;
+
+    String payload;
+    serializeJson(body, payload);
+
+    int code = http.POST(payload);
+
+    if (code == 201 || code == 200)
     {
-
-        WiFiClientSecure client;
-        client.setInsecure();
-        HTTPClient http;
-
-        String url = Endpoint + "/tablesdb/" + DatabaseId +
-                     "/tables/" + CollectionId + "/rows/" + rowId;
-
-        if (!http.begin(client, url))
-            return false;
-
-        http.addHeader("X-Appwrite-Project", ProjectId);
-        http.addHeader("X-Appwrite-Key", apiKey);
-
-        int code = http.sendRequest("DELETE");
-
+        DynamicJsonDocument doc(1024);
+        deserializeJson(doc, http.getString());
+        product.rowId = doc["$id"] | "";
         http.end();
-        return code == 204 || code == 200;
+        return true;
     }
 
-    // ---------- UPDATE ----------
-    bool updateProduct(Product product)
+    http.end();
+    return false;
+}
+
+// ---------- UPDATE PRODUCT ----------
+bool ProductService::updateProduct(Product &product)
+{
+    Serial.print("Updating product: ");
+    Serial.println(product.name);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+
+    String url = Endpoint + "/tablesdb/" + DatabaseId + "/tables/" + CollectionId + "/rows/" + product.rowId;
+
+    if (!http.begin(client, url))
+        return false;
+
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-Appwrite-Project", ProjectId);
+    http.addHeader("X-Appwrite-Key", apiKey);
+
+    DynamicJsonDocument body(512);
+    body["data"]["quantity"] = product.quantity;
+    body["data"]["category"] = product.category;
+
+    String payload;
+    serializeJson(body, payload);
+
+    int code = http.sendRequest("PATCH", payload);
+
+    http.end();
+    return code == 200;
+}
+
+// ---------- DELETE ----------
+bool ProductService::deleteProduct(String rowId)
+{
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+
+    String url = Endpoint + "/tablesdb/" + DatabaseId + "/tables/" + CollectionId + "/rows/" + rowId;
+
+    if (!http.begin(client, url))
+        return false;
+
+    http.addHeader("X-Appwrite-Project", ProjectId);
+    http.addHeader("X-Appwrite-Key", apiKey);
+
+    int code = http.sendRequest("DELETE");
+
+    http.end();
+    return code == 204 || code == 200;
+}
+
+// ---------- ID GENERATOR ----------
+String ProductService::generateId(int length)
+{
+    const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    String id = "";
+    for (int i = 0; i < length; i++)
     {
-
-        WiFiClientSecure client;
-        client.setInsecure();
-        HTTPClient http;
-
-        String url = Endpoint + "/tablesdb/" + DatabaseId +
-                     "/tables/" + CollectionId + "/rows/" + product.rowId;
-
-        if (!http.begin(client, url))
-            return false;
-
-        http.addHeader("Content-Type", "application/json");
-        http.addHeader("X-Appwrite-Project", ProjectId);
-        http.addHeader("X-Appwrite-Key", apiKey);
-
-        DynamicJsonDocument body(512);
-        body["data"]["quantity"] = product.quantity;
-        body["data"]["category"] = product.category;
-
-        String payload;
-        serializeJson(body, payload);
-
-        int code = http.sendRequest("PATCH", payload);
-
-        http.end();
-        return code == 200;
+        id += chars[random(strlen(chars))];
     }
-
-    // ---------- ID GENERATOR ----------
-    String generateId(int length = 20)
-    {
-        const char chars[] =
-            "abcdefghijklmnopqrstuvwxyz"
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "0123456789";
-
-        String id = "";
-        for (int i = 0; i < length; i++)
-        {
-            id += chars[random(strlen(chars))];
-        }
-        return id;
-    }
-};
+    return id;
+}
