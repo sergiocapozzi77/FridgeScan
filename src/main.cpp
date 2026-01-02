@@ -23,7 +23,8 @@ void fetchTask(void *param)
   {
     if (xQueueReceive(barcodeQueue, &barcode, portMAX_DELAY) == pdTRUE)
     {
-      fetchProductInfo(barcode);
+      ProductCacheItem product;
+      fetchProductInfo(barcode, product);
     }
   }
 }

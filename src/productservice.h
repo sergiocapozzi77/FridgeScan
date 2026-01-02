@@ -4,14 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <vector>
-
-struct Product
-{
-    String name;
-    int quantity;
-    String category;
-    String rowId;
-};
+#include "common.h"
 
 class ProductService
 {

@@ -2,7 +2,8 @@
 #define PRODUCT_API_H
 
 #include <Arduino.h>
+#include "cache.h"
 
-void fetchProductInfo(String barcode);
+bool fetchProductInfo(String barcode, ProductCacheItem &out);
 
 #endif

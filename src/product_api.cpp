@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "cache.h"
 
 String mapUkSupermarketCategory(const JsonArray &tags)
 {
@@ -76,13 +77,15 @@ String mapUkSupermarketCategory(const JsonArray &tags)
     return "Other";
 }
 
-void fetchProductInfo(String barcode)
+bool fetchProductInfo(String barcode, ProductCacheItem &out)
 {
     if (WiFi.status() != WL_CONNECTED)
     {
         Serial.println("WiFi not connected");
-        return;
+        return false;
     }
+
+    bool success = false;
 
     HTTPClient http;
     String url = "https://world.openfoodfacts.org/api/v0/product/" + barcode + ".json";
@@ -102,7 +105,7 @@ void fetchProductInfo(String barcode)
             Serial.print("JSON parsing failed: ");
             Serial.println(error.c_str());
             http.end();
-            return;
+            return success;
         }
 
         int status = doc["status"];
@@ -127,6 +130,12 @@ void fetchProductInfo(String barcode)
                 p.name = productName;
                 p.quantity = 1;
                 p.category = category;
+                p.barcode = barcode;
+
+                out.name = productName;
+                out.category = category;
+                out.barcode = barcode;
+                success = true;
 
                 service.addOrUpdateProduct(p);
             }
@@ -151,4 +160,28 @@ void fetchProductInfo(String barcode)
 
     // let scheduler breathe
     vTaskDelay(1);
+
+    return success;
+}
+
+bool getProduct(const String &barcode, ProductCacheItem &out)
+{
+    ProductCacheItem cached;
+
+    if (productCache.tryGet(barcode, cached))
+    {
+        Serial.println(">> Product from cache (local)");
+        return true;
+    }
+
+    Serial.println(">> Product from server");
+
+    bool success = fetchProductInfo(barcode, out);
+
+    if (success)
+    {
+        productCache.add(out);
+    }
+
+    return success;
 }
