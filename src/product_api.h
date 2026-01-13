@@ -4,6 +4,6 @@
 #include <Arduino.h>
 #include "cache.h"
 
-bool fetchProductInfo(String barcode, ProductCacheItem &out);
+bool getProduct(const String &barcode, ProductCacheItem &out);
 
 #endif

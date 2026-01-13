@@ -89,6 +89,8 @@ bool fetchProductInfo(String barcode, ProductCacheItem &out)
 
     HTTPClient http;
     String url = "https://world.openfoodfacts.org/api/v0/product/" + barcode + ".json";
+    Serial.print("Fetch product info: ");
+    Serial.println(url);
 
     http.begin(url);
     int httpResponseCode = http.GET();

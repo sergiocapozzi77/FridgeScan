@@ -24,7 +24,7 @@ void fetchTask(void *param)
     if (xQueueReceive(barcodeQueue, &barcode, portMAX_DELAY) == pdTRUE)
     {
       ProductCacheItem product;
-      fetchProductInfo(barcode, product);
+      getProduct(barcode, product);
     }
   }
 }
@@ -50,6 +50,9 @@ void setup()
   Serial.println("\nWi-Fi connected");
   Serial.print("IP: ");
   Serial.println(WiFi.localIP());
+
+  productCache.begin();
+  Serial.println("Product cache initialized");
 
   // Create queue (10 strings max)
   barcodeQueue = xQueueCreate(10, sizeof(String));
